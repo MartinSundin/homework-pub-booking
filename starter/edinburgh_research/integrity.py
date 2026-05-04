@@ -71,6 +71,7 @@ def extract_money_facts(text: str) -> list[str]:
 def extract_temperature_facts(text: str) -> list[str]:
     """Find temperature mentions (number followed by °C or C)."""
     stripped = re.sub(r"<[^>]+>", " ", text)
+    # import pdb; pdb.set_trace()
     return list({m.group(1) for m in re.finditer(r"(\d+)\s*°?\s*[Cc]\b", stripped)})
 
 
@@ -145,7 +146,7 @@ def verify_dataflow(flyer_content: str) -> IntegrityResult:
             verified.append(fact)
         else:
             unverified.append(fact)
-
+    # import pdb; pdb.set_trace()
     if unverified:
         return IntegrityResult(
             ok=False,

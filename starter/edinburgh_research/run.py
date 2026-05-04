@@ -205,14 +205,16 @@ async def run_scenario(real: bool) -> int:
                 "  - date: 2026-04-25 (a Saturday)\n"
                 "  - time: 19:30\n"
                 "  - area: near Haymarket station, Edinburgh\n\n"
-                "REQUIRED tool sequence (all four tools MUST run, in order):\n"
-                "  1. venue_search(near='Haymarket', party_size=6, budget_max_gbp=800)\n"
-                "  2. get_weather(city='edinburgh', date='2026-04-25')\n"
+                "REQUIRED tool sequence (all four tools MUST RUN, IN ORDER):\n"
+                "  1. venue_search(near='Haymarket', party_size=6, budget_max_gbp=800)  <-- MUST be called\n"
+                "  2. get_weather(city='edinburgh', date='2026-04-25')  <-- MUST be called\n"
                 "  3. calculate_cost(venue_id=<chosen pub's id>, party_size=6,\n"
-                "                    duration_hours=3, catering_tier='bar_snacks')\n"
+                "                    duration_hours=3, catering_tier='bar_snacks')  <-- MUST be called\n"
                 "  4. generate_flyer(event_details={...})  <-- MUST be called\n"
-                "  5. complete_task(result={'flyer': 'workspace/flyer.html', ...})\n\n"
-                "Do NOT call complete_task until you have called generate_flyer. "
+                "  5. complete_task(result={'flyer': 'workspace/flyer.html', ...})  <-- MUST be called\n\n"
+                "DO NOT call venue_search more than 7 times.\n"
+                "DO NOT change party_size from 6.\n"
+                "DO NOT call complete_task until you have called generate_flyer. "
                 "The scenario is graded by the existence of workspace/flyer.html, "
                 "not by your final text response. The flyer is HTML — exact tool "
                 "names and argument shapes are in each tool's docstring; call them "
@@ -257,6 +259,7 @@ async def run_scenario(real: bool) -> int:
             print(f"  {t.ticket_id}  {t.operation:50s}  {r.state.value}")
 
         flyer_path = session.workspace_dir / "flyer.html"
+        # import pdb; pdb.set_trace()
         if not flyer_path.exists():
             print("\n✗ No flyer written to workspace/. Ex5 failed.")
             from starter.edinburgh_research.integrity import _TOOL_CALL_LOG
