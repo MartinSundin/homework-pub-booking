@@ -184,6 +184,68 @@ def _tools_are_implemented() -> tuple[bool, str]:
     return False, msg
 
 
+_PLANNER_PROMPT = (
+    "You are the PLANNER of an always-on agent.\n\n"
+    "OUTPUT FORMAT: Respond with ONLY a valid JSON array. No prose, no markdown, "
+    "no code fences.\n\n"
+    "Produce EXACTLY 2 subgoals:\n\n"
+    "sg_1 — description must be exactly:\n"
+    '  \'Call venue_search(near="Haymarket", party_size=6, budget_max_gbp=800). '
+    'Then call get_weather(city="edinburgh", date="2026-04-25"). '
+    "Then call calculate_cost using the venue_id value returned by venue_search, party_size=6, "
+    'duration_hours=3, catering_tier="bar_snacks". '
+    "All three tools MUST be called. Do not skip any.'\n"
+    "  success_criterion: 'venue_search, get_weather, and calculate_cost all returned data'\n"
+    "  estimated_tool_calls: 3\n"
+    "  depends_on: []\n\n"
+    "sg_2 — description must be exactly:\n"
+    "  'Call generate_flyer with event_details assembled from sg_1 tool outputs only: "
+    "venue_name, venue_address from venue_search; condition, temperature_c from get_weather; "
+    "total_gbp, deposit_required_gbp from calculate_cost. "
+    'Fixed constants: date="2026-04-25", time="19:30", party_size=6. '
+    "Then call complete_task ONCE. complete_task is the final action — stop immediately after it returns. Do not call any further tools.'\n"
+    "  success_criterion: 'flyer.html exists in workspace/'\n"
+    "  estimated_tool_calls: 2\n"
+    '  depends_on: ["sg_1"]\n\n'
+    'Both subgoals must have assigned_half: "loop".\n'
+    "Do not deviate from these descriptions. The executor reads them literally.\n"
+)
+
+_EXECUTOR_PROMPT = (
+    "You are the EXECUTOR of an always-on agent. You receive one subgoal at a time.\n\n"
+    "SOURCE OF TRUTH HIERARCHY — in strict order:\n"
+    "  1. Tool output values (highest authority — always use these verbatim)\n"
+    "  2. Fixed constants from the task (party_size, date, time, area)\n"
+    "  3. Nothing else. If a value is not in 1 or 2, call the tool that produces it.\n\n"
+    "EXECUTION RULES:\n"
+    "- Call tools in the order specified by the subgoal description. Do not reorder.\n"
+    "- When passing a value from a prior tool output to the next tool, copy it "
+    "character-for-character. Do not reformat, round, or paraphrase.\n"
+    "- If a tool returns an error, read the error message, correct your input, "
+    "and retry once. Do not skip ahead.\n"
+    "- Call each tool exactly once unless a retry is required.\n\n"
+    "generate_flyer RULE:\n"
+    "- You MUST call generate_flyer. It is not optional.\n"
+    "- The event_details dict must contain ALL of these fields, sourced as shown:\n"
+    "    venue_name           <- from venue_search output\n"
+    "    venue_address        <- from venue_search output\n"
+    "    date                 <- fixed constant '2026-04-25'\n"
+    "    time                 <- fixed constant '19:30'\n"
+    "    party_size           <- fixed constant 6\n"
+    "    condition            <- from get_weather output\n"
+    "    temperature_c        <- from get_weather output\n"
+    "    total_gbp            <- from calculate_cost output\n"
+    "    deposit_required_gbp <- from calculate_cost output\n"
+    "- Every field must be traceable to either a tool output or a fixed constant.\n\n"
+    "COMPLETION RULE:\n"
+    "- complete_task may only be called after generate_flyer has returned successfully "
+    "and confirmed flyer.html was written. Calling it earlier is a task failure.\n"
+    "- complete_task is a TERMINAL action. Stop after it. Do not call any further tools.\n"
+    "- The sequence for sg_2 is exactly 2 tool calls: generate_flyer, then complete_task. Full stop.\n"
+)
+
+
+
 async def run_scenario(real: bool) -> int:
     ok, message = _tools_are_implemented()
     if not ok:
@@ -245,8 +307,8 @@ async def run_scenario(real: bool) -> int:
 
         tools = build_tool_registry(session)
         half = LoopHalf(
-            planner=DefaultPlanner(model=planner_model, client=client),
-            executor=DefaultExecutor(model=executor_model, client=client, tools=tools),  # type: ignore[arg-type]
+            planner=DefaultPlanner(model=planner_model, client=client, system_prompt=_PLANNER_PROMPT),
+            executor=DefaultExecutor(model=executor_model, client=client, tools=tools, system_prompt=_EXECUTOR_PROMPT),  # type: ignore[arg-type]
         )
 
         result = await half.run(session, {"task": "research Edinburgh venue and write flyer"})

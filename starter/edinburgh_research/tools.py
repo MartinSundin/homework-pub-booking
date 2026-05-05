@@ -104,7 +104,8 @@ def get_weather(city: str, date: str) -> ToolResult:
     MUST call record_tool_call(...) before returning.
     """
     # raise NotImplementedError("TODO 2: implement get_weather")
-    with open('sample_data/venues.json', 'r') as f:
+    data_path = __file__.replace("tools.py", "sample_data/weather.json")
+    with open(data_path, 'r') as f:
         data = json.load(f)
     weather = data[city][date]
     summary = f"get_weather({city}, {date}): {weather['condition']}, {weather['temperature_c']}°C"
@@ -147,24 +148,31 @@ def calculate_cost(
     MUST call record_tool_call(...) before returning.
     """
     # raise NotImplementedError("TODO 3: implement calculate_cost")
-    with open("sample_data/catering.json", "r") as f:
+    data_path = __file__.replace("tools.py", "sample_data/catering.json")
+    with open(data_path, "r") as f:
         catering = json.load(f)
     subtotal = catering["base_rates_gbp_per_head"][catering_tier] * party_size * max(1, duration_hours)
     service = subtotal*catering["service_charge_percent"]/100
 
-    with open("sample_data/venues.json", "r") as f:
+    data_path = __file__.replace("tools.py", "sample_data/venues.json")
+    with open(data_path, "r") as f:
         venues = json.load(f)
-    hire_fee = venues[venue_id]["hire_fee_gbp"]
-    min_spend = venues[venue_id]["min_spend_gbp"]
+
+    valid_venues = [venue for venue in venues if venue["id"] == venue_id]
+    if len(valid_venues) == 0:
+        return ToolResult(success=False,output=valid_venues, summary=f"No venue with venue_id {venue_id} found")
+    else:
+        hire_fee = valid_venues[0]["hire_fee_gbp"]
+        min_spend = valid_venues[0]["min_spend_gbp"]
 
     # parse the deposit policies
     deposit_required_rule = None
     for spend_rule, deposit_rule in catering["deposit_policy"].items():
-        if spend_rule.startswith("under_") and int(spend_rule.split("_")[-2]) < subtotal:
+        if spend_rule.startswith("under_") and int(spend_rule.split("_")[-1]) < subtotal:
             deposit_required_rule = deposit_rule
-        elif spend_rule.startswith("over_") and int(spend_rule.split("_")[-2]) > subtotal:
+        elif spend_rule.startswith("over_") and int(spend_rule.split("_")[-1]) > subtotal:
             deposit_required_rule = deposit_rule
-        elif "_to_" in spend_rule and int(spend_rule.split("_")[1]) <= subtotal and subtotal <= int(spend_rule.split("_")[3]):
+        elif "_to_" in spend_rule and int(spend_rule.split("_")[1]) <= subtotal and subtotal <= int(spend_rule.split("_")[-1]):
             deposit_required_rule = deposit_rule
         else:
             raise ValueError(f"unable to parse spend_rule: {spend_rule}")
@@ -172,10 +180,10 @@ def calculate_cost(
     # parse the found deposit rule
     if deposit_required_rule == "no_deposit_required":
         deposit_required = 0.0
-    elif "_required" in deposit_required_rule:
+    elif "_percent" in deposit_required_rule:
         deposit_required = int(deposit_required_rule.split("_")[1])*subtotal / 100
     else:
-        raise ValueError(f"unable to parse deposit_required_rule: {deposit_required_rule}")
+        raise ValueError(f"Unable to parse deposit_required_rule: {deposit_required_rule}")
 
     output = {
         "venue_id": venue_id,
@@ -187,6 +195,7 @@ def calculate_cost(
         "total_gbp": subtotal + service + hire_fee + min_spend,
         "deposit_required_gbp": int(deposit_required),
     }
+    
     summary = f"calculate_cost({venue_id}, {party_size}): total £{output['total_gbp']}, deposit £{output['deposit_required_gbp']}"
     record_tool_call("calculate_cost", {"venue_id": venue_id, "party_size": party_size, "duration_hours": duration_hours, "catering_tier": catering_tier}, output)
     return ToolResult(success=True, output=output, summary=summary)
