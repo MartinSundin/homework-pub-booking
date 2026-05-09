@@ -117,6 +117,24 @@ def _build_fake_client_two_rounds() -> FakeLLMClient:
                     )
                 ]
             ),
+            ScriptedResponse(  # executor turn 1: new search with smaller party
+                tool_calls=[
+                    ToolCall(
+                        id="c5",
+                        name="venue_search",
+                        arguments={"near": "New Town", "party_size": 10, "budget_max_gbp": 5000},
+                    )
+                ]
+            ),
+            ScriptedResponse(  # executor turn 1: new search with smaller party
+                tool_calls=[
+                    ToolCall(
+                        id="c6",
+                        name="venue_search",
+                        arguments={"near": "Haymarket", "party_size": 6, "budget_max_gbp": 500},
+                    )
+                ]
+            ),
         ]
     )
 

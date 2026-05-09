@@ -17,4 +17,3 @@ Overall a quite good and smooth experience.
 - `Session sess_c24b1db259f8`
 - `voice_pipeline/voice_loop.py`
 - `voice_pipeline/manager_persona.py`
-

@@ -4,76 +4,54 @@
 
 ### Your answer
 
-In my Ex7 run (session sess_a382a2149fc1), the planner's second
-subgoal was sg_2 "commit the booking under policy rules" with
-assigned_half: "structured". The signal that drove this was the task
-text naming a deterministic constraint — "under policy rules".
-Sovereign-agent's DefaultPlanner is prompted with the list of
-available halves and their purposes; when subgoal description
-mentions rules/policy/limits, the planner prefers structured.
+I found that the planner handoff worked well in all exercises following exercise 5. In exercise 5 I needed to give very direct prompts for the model to perform the correct tool calls, and often for it to perform the tool calls at all. In the following exercises the Rasa structured calls and handoff bridge made the model perform the correct tool call without any additional prompts. This was very helpful but came at the cost of additional tooling and complexity.
 
-This decision is advisory, not physical. The orchestrator respects
-it only because both halves are wired up. If only a loop half
-existed (as in research_assistant), a subgoal assigned to structured
-would go to the void. That's failure mode #4 from the course slides.
+I inspected the responses from all runs, with the exception of most runs for exercise 7 where the logs were missing or deleted for most of my runs. It was necessary to inspect the logs since many runs completed with the first impression that they were successful. One alternative here could have been to introduce a "debug mode" where the loop exits with an error whenever it hits an unsuccessful step, although I understand that this behaviour can be difficult to specify when the model is designed to retry failed steps.
 
-The broader lesson: the planner makes an architectural decision
-based on prose interpretation. Put the rules somewhere the LLM
-cannot mis-assign — in the structured half's Python — and prose
-ambiguity no longer matters.
+The planner decides the following tool calls, but it cannot plan for all possible combinations of errors. Ideally the planner could outline the plan in steps, so if one step is only partially successful, the planner needs to an another round of planning when the original plan fails. This comes at a cost, of course.
 
-### Citation
+### Citations
 
-- sessions/sess_a382a2149fc1/logs/tickets/tk_*/raw_output.json
-- sessions/sess_a382a2149fc1/logs/trace.jsonl:23
+- `started/edinburgh_research/run.py`
+- `Session sess_c4c2cb1b352b` (exercise 5)
+- `Session sess_529122a48208` (exercise 5)
+- `Session sess_fcedb959a6bb` (exercise 6)
+- `Session ba3418f77a3c` (exercise 7)
+- `Session 43ed4e05d39d` (exercise 7)
+- `Session 071f9e05581c` (exercise 7)
+- `Session: sess_561c3a242f5f` (exercise 8)
+- `Session sess_d4b8c9c978de` (exercise 8)
+- `Session: sess_e90261be636f` (exercise 8)
+- `Session sess_c24b1db259f8` (exercise 8)
 
----
 
 ## Q2 — Dataflow integrity catch
 
 ### Your answer
 
-During Ex5 development my integrity check caught a subtle fabrication
-that manual review missed. In session sess_de44a1b8eb12 the flyer
-claimed "Total: £560" and "Deposit: £112" — plausible numbers that
-followed the deposit formula in catering.json. I skimmed and moved on.
+I found that in exercise 5 the final output was sometimes marked as successful even when the output values were incongurent with the inputs. E.g. when the checker found a CSS color containing `c`, it misstook it for a temperature value. Adding structure to the inputs and outputs made the model fail much less frequently, giving a significant improvement. I suspect that this is because the structured input is the same every time while in natural language the same information can be stated in many different ways or variations. 
 
-verify_dataflow returned ok=False with unverified_facts=['£560','£112'].
-The trace showed calculate_cost returned total_gbp=540, deposit=0. The
-real total was £540 under the £300 deposit threshold. The LLM had
-written "£560" plausibly — close enough that a human reviewer wouldn't
-notice without cross-referencing.
+### Citations
 
-The check caught it because it compared against ground truth in
-_TOOL_CALL_LOG, not against "does this look reasonable." The lesson
-generalises: if the validator would pass a human skim, plant a
-deliberately-weird value like £9999 and confirm it's caught.
+- `Session sess_529122a48208` (exercise 5)
+- `Session sess_fcedb959a6bb` (exercise 6)
+- `Session 071f9e05581c` (exercise 7)
+- `Session sess_d4b8c9c978de` (exercise 8)
 
-### Citation
-
-- sessions/sess_de44a1b8eb12/workspace/flyer.md:12
-- sessions/sess_de44a1b8eb12/logs/trace.jsonl:15
-
----
 
 ## Q3 — Removing one framework primitive
 
 ### Your answer
 
-I'd keep session directories (Decision 1) as the last thing standing
-and rebuild everything else if forced. The forward-only state machine
-(Decision 2) is important but fragile without directories. Tickets
-(Decision 3) I could rebuild as .jsonl files inside the session.
-Atomic-rename IPC (Decision 5) is replaceable by directory polling.
+If I were to rewrite the framework I would probably start out by forking a well known and widely available framework like `langchain` or `strands` and implement the missing functionality in a separate script.
 
-Session directories are the irreplaceable piece. Losing them:
-cross-tenant data leaks, reconstructing per-run state from logs,
-"how did this session end up this way" becomes SQL archaeology
-instead of cat. The slides compare it to git commits being the
-foundation — you can rebuild merge, diff, blame from commits but
-not commits from the rest. Session directories are commits.
+I found the logging in plain text to be very good. It would perhaps been instructive to also log the output using a freely available web framework like `weights & biases`. The logged json was clear and easy to read. Some error messages were not self evident of how to interpret, but it was often not difficult to dig deeper to find the actual error.
 
-### Citation
+A next step would be to have the model query its own logs. It would then be possible to ask it questions like "why did the Haymarket reject our booking request?" Also most tasks were missing their ticket_id for unknown reason. This was not a problem in this context but might cause problem if the agent were to process 100s or 1000s of tickets a day.
 
-- sessions/sess_de44a1b8eb12/ — the directory itself
-- sessions/sess_a382a2149fc1/logs/trace.jsonl
+### Citations
+
+- `Session sess_c4c2cb1b352b` (exercise 5)
+- `Session sess_fcedb959a6bb` (exercise 6)
+- `Session 43ed4e05d39d` (exercise 7)
+- `Session sess_c24b1db259f8` (exercise 8)
