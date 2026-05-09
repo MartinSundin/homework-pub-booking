@@ -1,8 +1,13 @@
 # Ex9 — Reflection
 
+
 ## Q1 — Planner handoff decision
 
+_Find a point in your Ex7 logs where the planner decided to hand off to the structured half. Quote the planner's reasoning or the specific subgoal's assigned_half field. What signal caused the decision?_
+
 ### Your answer
+
+In exercise 7, the planner handed over to the structured half when a venue failed to be found and when a venue was found. More specifically `handoff to structured half: loop half identified a candidate venue; passing to structured half for confirmation under policy rules` (zero venues were found) and `handoff to structured half: retry after reverse handoff \u2014 scaled down to fit policy` (1 venue found). These handoffs both came after the tool call was performed.
 
 I found that the planner handoff worked well in all exercises following exercise 5. In exercise 5 I needed to give very direct prompts for the model to perform the correct tool calls, and often for it to perform the tool calls at all. In the following exercises the Rasa structured calls and handoff bridge made the model perform the correct tool call without any additional prompts. This was very helpful but came at the cost of additional tooling and complexity.
 
@@ -27,7 +32,11 @@ The planner decides the following tool calls, but it cannot plan for all possibl
 
 ## Q2 — Dataflow integrity catch
 
+_Describe one instance where your Ex5 dataflow integrity check caught something manual inspection missed, OR (if you never saw it trigger) describe a plausible scenario where it WOULD catch a failure that a human reviewer wouldn't. Your scenario must be specific enough that someone else could construct the test case._
+
 ### Your answer
+
+My impression was the reverse for exercise 5. In almost all cases the integrity check completed with a `successful` status, while studying the logs gave another picture. A possible scenario is when the model hallucinates a tool call response that "looks" correct but is found to be incorrect on closer inspection. Such an error might be missed by a human, but caught in dataflow integrity checks.
 
 I found that in exercise 5 the final output was sometimes marked as successful even when the output values were incongurent with the inputs. E.g. when the checker found a CSS color containing `c`, it misstook it for a temperature value. Adding structure to the inputs and outputs made the model fail much less frequently, giving a significant improvement. I suspect that this is because the structured input is the same every time while in natural language the same information can be stated in many different ways or variations. 
 
@@ -41,7 +50,12 @@ I found that in exercise 5 the final output was sometimes marked as successful e
 
 ## Q3 — Removing one framework primitive
 
+_If you were shipping this agent to a real pub-booking business next week, what's the first production failure you'd expect, and which sovereign-agent primitive (ticket state machine, manifest discipline, IPC atomic rename, SessionQueue retry, etc.) would surface it? One specific primitive, one specific failure mode._
+
 ### Your answer
+
+If I were to ship this app into production next week, I would expect that SessionQueue retry would fail first. This is because the model would most probably try to retry a failed query or alter the parameters in such a way that the query was successful, but the new booking was too unlike the original query to be accepted by the user. In other words, the model would retry until a successfull booking was made, even if it was not the original booking request. Because the model can have difficulty to differentiate between an actualy failure (the booking request is not possible) and a failure of the tools (an incorrect query). The real world is more messy than this controlled exercise, that is why I expect the SessionQueue retry to fail first.
+
 
 If I were to rewrite the framework I would probably start out by forking a well known and widely available framework like `langchain` or `strands` and implement the missing functionality in a separate script.
 
