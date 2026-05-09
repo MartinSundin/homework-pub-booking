@@ -245,7 +245,6 @@ _EXECUTOR_PROMPT = (
 )
 
 
-
 async def run_scenario(real: bool) -> int:
     ok, message = _tools_are_implemented()
     if not ok:
@@ -307,8 +306,12 @@ async def run_scenario(real: bool) -> int:
 
         tools = build_tool_registry(session)
         half = LoopHalf(
-            planner=DefaultPlanner(model=planner_model, client=client, system_prompt=_PLANNER_PROMPT),
-            executor=DefaultExecutor(model=executor_model, client=client, tools=tools, system_prompt=_EXECUTOR_PROMPT),  # type: ignore[arg-type]
+            planner=DefaultPlanner(
+                model=planner_model, client=client, system_prompt=_PLANNER_PROMPT
+            ),
+            executor=DefaultExecutor(
+                model=executor_model, client=client, tools=tools, system_prompt=_EXECUTOR_PROMPT
+            ),  # type: ignore[arg-type]
         )
 
         result = await half.run(session, {"task": "research Edinburgh venue and write flyer"})

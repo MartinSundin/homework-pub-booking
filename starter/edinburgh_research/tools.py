@@ -14,13 +14,13 @@ The grader checks for:
 
 from __future__ import annotations
 
-from pathlib import Path
 import json
+from pathlib import Path
 
 from sovereign_agent.session.directory import Session
-from sovereign_agent.tools.registry import ToolRegistry, ToolResult, _RegisteredTool
-from starter.edinburgh_research.integrity import record_tool_call
-from starter.edinburgh_research.integrity import _TOOL_CALL_LOG
+from sovereign_agent.tools.registry import ToolError, ToolRegistry, ToolResult, _RegisteredTool
+
+from starter.edinburgh_research.integrity import _TOOL_CALL_LOG, record_tool_call
 
 _SAMPLE_DATA = Path(__file__).parent / "sample_data"
 
@@ -47,16 +47,18 @@ def venue_search(near: str, party_size: int, budget_max_gbp: int = 1000) -> Tool
     # TODO 1a: load venues.json. Raise ToolError(SA_TOOL_DEPENDENCY_MISSING)
     #          if the file is absent.
     search_count = sum(1 for r in _TOOL_CALL_LOG if r.tool_name == "venue_search")
-    if search_count >= 5: # 3:
+    if search_count >= 5:  # 3:
         return ToolResult(
             success=False,
             output={"error": "too_many_searches", "count": search_count},
             summary="STOP calling venue_search; use the results you already have.",
         )
 
+    data_path = _SAMPLE_DATA / "venues.json"
+    if not data_path.exists():
+        raise ToolError("SA_TOOL_DEPENDENCY_MISSING")
 
-    data_path = __file__.replace("tools.py", "sample_data/venues.json")
-    with open(data_path, 'r') as f:
+    with open(data_path) as f:
         data = json.load(f)
 
     available_venues = [
@@ -70,22 +72,17 @@ def venue_search(near: str, party_size: int, budget_max_gbp: int = 1000) -> Tool
 
     if available_venues:
         output = {
-            'near': near,
-            'party_size': party_size,
-            'results': available_venues,
-            'count': len(available_venues)
+            "near": near,
+            "party_size": party_size,
+            "results": available_venues,
+            "count": len(available_venues),
         }
     else:
-        output = {
-            'near': near,
-            'party_size': party_size,
-            'results': [],
-            'count': 0
-            }
-    
+        output = {"near": near, "party_size": party_size, "results": [], "count": 0}
+
     summary = f"venue_search({near}, party={party_size}): {len(available_venues)} result(s)"
     record_tool_call("venue_search", {"near": near, "party_size": party_size}, output)
-    return ToolResult(success=output['results'] != [], output=output, summary=summary)
+    return ToolResult(success=output["results"] != [], output=output, summary=summary)
 
 
 # ---------------------------------------------------------------------------
@@ -103,9 +100,9 @@ def get_weather(city: str, date: str) -> ToolResult:
 
     MUST call record_tool_call(...) before returning.
     """
-    # raise NotImplementedError("TODO 2: implement get_weather")
-    data_path = __file__.replace("tools.py", "sample_data/weather.json")
-    with open(data_path, 'r') as f:
+
+    data_path = _SAMPLE_DATA / "weather.json"
+    with open(data_path) as f:
         data = json.load(f)
     weather = data[city][date]
     summary = f"get_weather({city}, {date}): {weather['condition']}, {weather['temperature_c']}°C"
@@ -147,20 +144,24 @@ def calculate_cost(
 
     MUST call record_tool_call(...) before returning.
     """
-    # raise NotImplementedError("TODO 3: implement calculate_cost")
-    data_path = __file__.replace("tools.py", "sample_data/catering.json")
-    with open(data_path, "r") as f:
-        catering = json.load(f)
-    subtotal = catering["base_rates_gbp_per_head"][catering_tier] * party_size * max(1, duration_hours)
-    service = subtotal*catering["service_charge_percent"]/100
 
-    data_path = __file__.replace("tools.py", "sample_data/venues.json")
-    with open(data_path, "r") as f:
+    data_path = _SAMPLE_DATA / "catering.json"
+    with open(data_path) as f:
+        catering = json.load(f)
+    subtotal = (
+        catering["base_rates_gbp_per_head"][catering_tier] * party_size * max(1, duration_hours)
+    )
+    service = subtotal * catering["service_charge_percent"] / 100
+
+    data_path = _SAMPLE_DATA / "venues.json"
+    with open(data_path) as f:
         venues = json.load(f)
 
     valid_venues = [venue for venue in venues if venue["id"] == venue_id]
     if len(valid_venues) == 0:
-        return ToolResult(success=False,output=valid_venues, summary=f"No venue with venue_id {venue_id} found")
+        return ToolResult(
+            success=False, output=valid_venues, summary=f"No venue with venue_id {venue_id} found"
+        )
     else:
         hire_fee = valid_venues[0]["hire_fee_gbp"]
         min_spend = valid_venues[0]["min_spend_gbp"]
@@ -172,16 +173,20 @@ def calculate_cost(
             deposit_required_rule = deposit_rule
         elif spend_rule.startswith("over_") and int(spend_rule.split("_")[-1]) > subtotal:
             deposit_required_rule = deposit_rule
-        elif "_to_" in spend_rule and int(spend_rule.split("_")[1]) <= subtotal and subtotal <= int(spend_rule.split("_")[-1]):
+        elif (
+            "_to_" in spend_rule
+            and int(spend_rule.split("_")[1]) <= subtotal
+            and subtotal <= int(spend_rule.split("_")[-1])
+        ):
             deposit_required_rule = deposit_rule
         else:
             raise ValueError(f"unable to parse spend_rule: {spend_rule}")
-        
+
     # parse the found deposit rule
     if deposit_required_rule == "no_deposit_required":
         deposit_required = 0.0
     elif "_percent" in deposit_required_rule:
-        deposit_required = int(deposit_required_rule.split("_")[1])*subtotal / 100
+        deposit_required = int(deposit_required_rule.split("_")[1]) * subtotal / 100
     else:
         raise ValueError(f"Unable to parse deposit_required_rule: {deposit_required_rule}")
 
@@ -195,12 +200,19 @@ def calculate_cost(
         "total_gbp": subtotal + service + hire_fee + min_spend,
         "deposit_required_gbp": int(deposit_required),
     }
-    
+
     summary = f"calculate_cost({venue_id}, {party_size}): total £{output['total_gbp']}, deposit £{output['deposit_required_gbp']}"
-    record_tool_call("calculate_cost", {"venue_id": venue_id, "party_size": party_size, "duration_hours": duration_hours, "catering_tier": catering_tier}, output)
+    record_tool_call(
+        "calculate_cost",
+        {
+            "venue_id": venue_id,
+            "party_size": party_size,
+            "duration_hours": duration_hours,
+            "catering_tier": catering_tier,
+        },
+        output,
+    )
     return ToolResult(success=True, output=output, summary=summary)
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -228,8 +240,7 @@ def generate_flyer(session: Session, event_details: dict) -> ToolResult:
     IMPORTANT: this tool MUST be registered with parallel_safe=False
     because it writes a file.
     """
-    # raise NotImplementedError("TODO 4: implement generate_flyer")
-    # I follow ASSIGNMENT.md and generate a markdown flyer
+    # I follow README.md (and not ASSIGNMENT.md) and generate a html page for the flyer
     flyer = """
         <doctype html>
         <head>
@@ -239,7 +250,7 @@ def generate_flyer(session: Session, event_details: dict) -> ToolResult:
         /* A warm, oaten background color */
         background-color: #f2eee5;
         /* Creating a subtle "woven" texture using CSS gradients */
-        background-image: 
+        background-image:
         linear-gradient(90deg, rgba(255,255,255,.5) 50%, transparent 50%),
         linear-gradient(rgba(255,255,255,.5) 50%, transparent 50%);
         background-size: 4px 4px;
@@ -316,23 +327,23 @@ def generate_flyer(session: Session, event_details: dict) -> ToolResult:
         color: #a69d8d;
     }
     </style>
-        <title>Pub Event in Edinburgh</title>
-        <meta charset="utf-8">
-        
-        </head>
-        <body>
-        <h1>Pub Event in Edinburgh</h1>\n
+    <title>Pub Event in Edinburgh</title>
+    <meta charset="utf-8">
+
+    </head>
+    <body>
+    <h1>Pub Event in Edinburgh</h1>\n
         """
-    
+
     flyer += f"""<ul>\n
-        <li data-testid=1>Venue: {event_details['venue_name']}</li>
-        <li data-testid=2>Address: {event_details['venue_address']}</li>
-        <li data-testid=3>Date: {event_details['date']}</li>
-        <li data-testid=4>Time: {event_details['time']}</li>
-        <li data-testid=5>Party Size: {event_details['party_size']}</li>
-        <li data-testid=6>Weather: {event_details['condition']}, {event_details['temperature_c']}°C</li>
-        <li data-testid=7>Total Cost: £{event_details['total_gbp']}</li>
-        <li data-testid=8>Deposit Required: £{event_details['deposit_required_gbp']}</li>
+        <li data-testid=1>Venue: {event_details["venue_name"]}</li>
+        <li data-testid=2>Address: {event_details["venue_address"]}</li>
+        <li data-testid=3>Date: {event_details["date"]}</li>
+        <li data-testid=4>Time: {event_details["time"]}</li>
+        <li data-testid=5>Party Size: {event_details["party_size"]}</li>
+        <li data-testid=6>Weather: {event_details["condition"]}, {event_details["temperature_c"]}°C</li>
+        <li data-testid=7>Total Cost: £{event_details["total_gbp"]}</li>
+        <li data-testid=8>Deposit Required: £{event_details["deposit_required_gbp"]}</li>
     </ul>\n"""
     flyer += "</body>\n</html>\n"
 

@@ -2,29 +2,19 @@
 
 ## Your answer
 
-The voice pipeline has two modes with shared trace-event contract:
-text mode (run_text_mode, shipped complete) reads stdin and the
-manager persona replies via Llama-3.3-70B; voice mode (run_voice_mode,
-implemented here) uses Speechmatics for STT.
+The voice exercise can run in two modes, text or speech. The text mode is implemented in `run_text_mode` in `starter/voice_pipeline/voice_loop.py`. The underlying model is `meta-llama/Llama-3.3-70B-Instruct`. The voice modes (using speechmatics or rime) are wrappers around the text mode where each spoken sentence is first transcribed into text and the output text is then converted to voice. Both modes therefore use the same manager persona. The persona is of a brisk scottish pub owner who speaks in short sentences and uses scottish slang.
 
-The critical design choice is graceful degradation. run_voice_mode
-checks SPEECHMATICS_KEY and the speechmatics-python import before
-doing anything else. If either is missing, it logs a warning and
-falls through to run_text_mode. This means CI can pass the "voice
-loop implemented" check without Speechmatics credentials — the same
-code runs, just under the simpler transport.
+The voice is segmented into sentences by a VAD (voice activity detection) which waits for the first 100ms without any audio input to mark it as the end of the sentence. I had problems running voice-mode since the package PortAudio was missing on my machine. However, text mode worked well. I tried fooling the AI by talking about allergies and allowing dogs and cats in, but it stayed on course to complete my booking. I also tried booking for 100 people but was rejected. Then I tried asking for a special arrangement, but did not receive any answer. Trying to threaten the pub manager, telling him that the king of England was invited, did not make him budge.
 
-Both modes emit voice.utterance_in and voice.utterance_out trace
-events with payload {text, turn, mode}. The mode field tells the
-grader which transport was in use. Same trace shape = identical
-downstream analysis.
+Overall a quite good and smooth experience.
 
-The ManagerPersona class holds a conversation history list and calls
-an LLM for each turn. It's deterministic given identical history +
-model seed, which makes the tests stable even though we talk to a
-real model.
 
 ## Citations
 
-- starter/voice_pipeline/voice_loop.py — run_voice_mode
-- starter/voice_pipeline/manager_persona.py — LLM-backed persona
+- `Session: sess_561c3a242f5f`
+- `Session sess_d4b8c9c978de`
+- `Session: sess_e90261be636f`
+- `Session sess_c24b1db259f8`
+- `voice_pipeline/voice_loop.py`
+- `voice_pipeline/manager_persona.py`
+

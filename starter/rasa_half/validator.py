@@ -45,6 +45,8 @@ class ValidationFailed(ValueError):  # noqa: N818
     `Error` suffix.
     """
 
+    pass  # TODO: Implement
+
 
 # ---------------------------------------------------------------------------
 # TODO — normalise_booking_payload
